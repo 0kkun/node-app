@@ -1,4 +1,5 @@
 import express from 'express'
+import GoogleApis from 'googleapis'
 require('dotenv').config()
 
 const env = process.env
@@ -10,9 +11,11 @@ app.get('/', (req, res) => {
   res.render('hello.ejs')
 })
 
-app.get('/api/v1/getResTest', (req, res) => {
+app.get('/api/v1/google_test', (req, res) => {
   res.json({status:200, data:'OK'})
 })
+
+
 
 app.listen(PORT, () => {
   console.log(`Express running on http://localhost:${PORT}`)
