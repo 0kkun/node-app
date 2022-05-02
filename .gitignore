@@ -1,4 +1,5 @@
 /node/node_modules
 /node/.env
 /node/credentials.json
+/node/access-token.json
 .DS_Store
