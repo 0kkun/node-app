@@ -31,3 +31,7 @@ start:
 .PHONY: install
 install:
 	cd node; npm install
+
+.PHONY: open
+open:
+	open https://localhost:3443/
