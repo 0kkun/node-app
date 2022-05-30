@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "ts-node-dev --poll src/server.ts",
     "start-prod": "ts-node src/server.ts",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "migrate-status": "ts-node node_modules/.bin/typeorm migration:show",
+    "make-test": "ts-node node_modules/.bin/typeorm migration:run"
   },
   "keywords": [],
   "author": "",
@@ -20,10 +22,12 @@
     "express": "^4.17.1",
     "fs": "^0.0.1-security",
     "googleapis": "^39.2.0",
-    "moment": "^2.29.3",
+    "mysql": "^2.18.1",
     "nodemon": "^2.0.15",
+    "request": "^2.88.2",
     "ts-node": "^10.4.0",
     "ts-node-dev": "^1.1.8",
+    "typeorm": "^0.3.6",
     "typescript": "^4.6.3"
   }
 }

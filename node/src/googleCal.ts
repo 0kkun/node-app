@@ -1,7 +1,6 @@
 import fs from 'fs'
 import readline from 'readline'
 import {google} from 'googleapis'
-import moment from 'moment'
 import { Config, Credentials } from 'entity/GoogleApi'
 
 export default class GoogleCal {
@@ -31,14 +30,13 @@ export default class GoogleCal {
     return new Promise((resolve, reject) => {
       fs.readFile('credentials.json', (err, content: any) => {
         console.log('認証開始');
-        if (err){
+        if (err) {
           console.log('[Error] credentialsの読み込みに失敗しました');
           console.error(err);
           reject();
         }
         this.authorize(JSON.parse(content)).then(auth => {
           this.config.auth = auth;
-          console.log('認証完了');
           resolve(auth);
         });
       });
@@ -51,7 +49,7 @@ export default class GoogleCal {
    * @param {Object} credentials 認証データ
    * @return (promise) object oAuth2Client.
    */
-  authorize(credentials: Credentials) {
+  authorize(credentials: any) {
     const {client_secret, client_id, redirect_uris} = credentials.web;
     const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
@@ -67,6 +65,7 @@ export default class GoogleCal {
           })
         } else {
           // アクセストークンは1時間ほどしか期限がないため、毎回リフレッシュトークンから新たなトークンを生成する
+          console.log('注目', JSON.parse(token));
           oAuth2Client.credentials = JSON.parse(token);
           console.log('新しくアクセストークンの取得開始');
           oAuth2Client.refreshAccessToken((err, token: any) => {
