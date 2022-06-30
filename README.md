@@ -12,6 +12,11 @@
 2. nodejs用のcredentials.jsonをダウンロード
 3. node/src/lib/firestore-credentials.jsonを作成し内容をコピペ
 
+### OAuth Clientの準備
+
+1. GCPコンソール画面からOAuth Clientの作成
+2. 作成したClientの情報をもとに、CLIENT_ID、CLIENT_SECRET、REDIRECT_URIを記載 (.env.example参考)
+
 ### docker構築
 
 1. 以下のChromeの設定画面を開き、`Allow invalid certificates for resources loaded from localhost.` をEnabledに変更して保存する
