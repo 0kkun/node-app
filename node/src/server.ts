@@ -1,15 +1,9 @@
 import express from 'express'
-const google = require("googleapis");
-import docs from '@googleapis/docs'
-import fs, { open } from 'fs'
-import GoogleCal from './googleCal'
-import GoogleService from './googleService';
-import { Config, Credentials } from 'entity/GoogleApi'
-require('dotenv').config();
-import { Token } from 'entity/Token';
-const request = require('request');
-
-const mysql = require('mysql');
+import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
+import { Token } from 'entity/Token'
+import { findTokenData, findTokenDoc, storeToken } from './repositories/token'
+const mysql = require('mysql')
+require('dotenv').config()
 const env = process.env
 const PORT = env.NODE_PORT
 const app = express()
@@ -22,41 +16,102 @@ const connection = mysql.createConnection({
   database: 'sample'
 });
 
-app.get('/', (req, res) => {
-  res.render('top.ejs', {
-    url: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.readonly&response_type=code&client_id=472259460876-tomdtkgt2mgonhg2mkqen71em0jo1pc8.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Flocalhost%3A3443'
-  })
+// アクセスコード生成用ページ
+app.get('/', async (req, res) => {
+  const url = await generateAuthUrl()
+  res.render('top.ejs', { url: url })
 })
 
-app.get('/tokenValid', (req, res) => {
-  const accessToken = 'ya29.a0ARrdaM9H9AObXu_nHNOVARJ_u78qa8Y88Zp0t5Y_Ov2XOHrZLi4lPTK8oj5BK3S3JdFv-tYE-M57TDju0OnXMqutUDBaWAkr8W_fNSKFI_jezvXVBMdx4enzE-ASoM4hLP57JSvU97ltMXNe2KvINv6uuMGh';
-  const url = 'https://www.googleapis.com/oauth2/v3/tokeninfo'
-  const isValid = request.get({
-    uri: url,
-    headers: {'Content-type': 'application/json'},
-    qs: {
-      'access_token': accessToken
-    },
-    json: true
-  }, function(err: any, req: any, data: any){
-      console.log(data);
-  });
-  // console.log(isValid);
-  res.json({status:200, data:'success'});
-})
-
-app.get('/synctest', (req: any, res) => {
-  const code = String(req.query.code);
-  console.log('code', code);
-  if (code === 'undefined') {
-    res.json({status:400, data: 'bad request'});
+// トークン発行API
+app.get('/google-start', async (req, res) => {
+  const accessCode = String(req.query.accessCode)
+  const storeId = String(req.query.storeId)
+  const seatId = Number(req.query.seatId)
+  if (accessCode === 'undefined' || storeId === 'undefined' || isNaN(seatId)) {
+    res.json({status:400, data:'bad request'})
   }
-  // const googleService = new GoogleService(code);
-  // googleService.connect().then((OAuth2Client: any) => {
-  //   console.log(`access_token : ${OAuth2Client.credentials.access_token}`);
-  //   console.log(`refresh_token : ${OAuth2Client.credentials.refresh_token}`);
-  // });
-  res.json({status:200, data:'success'});
+
+  try {
+    const tokenDoc = await findTokenDoc(storeId, seatId)
+    // 連携済の場合
+    if (tokenDoc.exists) {
+      res.json({status:200, data:'already'})
+    }
+    let oAuth2Client = await authorize()
+    console.log('Google authorize completed')
+  
+    oAuth2Client = await getToken(oAuth2Client, accessCode)
+    console.log('Get token is completed')
+  
+    await storeToken(storeId, seatId, oAuth2Client)
+    console.log('Save token is completed')
+  
+    res.json({status:200, data:'success'});
+  } catch (e) {
+    console.error(e)
+    res.json({status:503, data:'server error'});
+  }
+})
+
+// スケジュール取得
+app.get('/google-get', async (req, res) => {
+  const storeId = String(req.query.storeId)
+  const seatId = Number(req.query.seatId)
+  const timeMin: string = (new Date()).toISOString()
+  const eventCount: number = 1
+
+  if (storeId === 'undefined' || isNaN(seatId)) {
+    res.json({status:400, data:'bad request'})
+  }
+
+  try {
+    const tokenInfo = await findTokenData(storeId, seatId)
+    console.log('Get token data from firestore is completed')
+    const oAuth2Client = await getOAuth2Client(tokenInfo)
+    const events = await listEvents(oAuth2Client, timeMin, eventCount)
+    res.status(200).send(events)
+
+  } catch (e) {
+    console.error(e)
+    res.json({status:503, data:'server error'});
+  }
+})
+
+// イベント挿入
+app.get('/google-create', async (req, res) => {
+  const storeId: string = String(req.query.storeId)
+  const seatId: number = Number(req.query.seatId)
+  const event = {
+    summary: 'イベント名',
+    description: '説明',
+    location: '東京駅',
+    start: {
+      dateTime: '2022-06-30T09:00:00', 
+      timeZone: 'Asia/Tokyo',
+    },
+    end: {
+      dateTime: '2022-06-30T10:00:00',
+      timeZone: 'Asia/Tokyo',
+    },
+  }
+
+  if (storeId === 'undefined' || isNaN(seatId)) {
+    console.log('Bad request')
+    res.status(400).send('Bad request. Must need [?storeId=&seatId=]')
+  }
+
+  try {
+    const tokenInfo = await findTokenData(storeId, seatId)
+    console.log('Get token data from firestore is completed')
+
+    const oAuth2Client = await getOAuth2Client(tokenInfo)
+    const statusText = await insertEvent(oAuth2Client, event)
+    res.status(200).send(statusText)
+
+  } catch (e) {
+    console.error(e)
+    res.json({status:503, data:'server error'});
+  }
 })
 
 /**
@@ -79,33 +134,6 @@ app.get('/db-test', (req, res) => {
   res.json({status:200, data:'OK'})
 })
 
-app.get('/api/v1/google_test', (req, res) => {
-
-  const googleCal = new GoogleCal;
-  googleCal.connect()
-  .then((OAuth2Client: any) => {
-    console.log(`access_token : ${OAuth2Client.credentials.access_token}`);
-    console.log(`refresh_token : ${OAuth2Client.credentials.refresh_token}`);
-    let dateTime = dateConvert(OAuth2Client.credentials.expiry_date);
-    console.log(`アクセストークンが使えなくなる期限 : ${dateTime}`);
-    let expireDateForRefresh = new Date().getTime() + OAuth2Client.eagerRefreshThresholdMillis;
-    expireDateForRefresh = new Date(expireDateForRefresh);
-    console.log(`refresh token expiered at : ${expireDateForRefresh.toLocaleString()}`);
-    return;
-    // return googleCal.getTodayEvents((_val: any) => !_val.id.match(/#/)); // 誕生日や祝日のカレンダーは取得対象から除外
-  })
-  // .then((val: any) => {
-  //   console.log('failed')
-  //   console.log(val);
-  // });
-  res.json({status:200, data:'OK'})
-})
-
-function dateConvert(expierDate: number) {
-  let date = new Date(expierDate);
-  return date.getFullYear() + '-' +('0' + (date.getMonth()+1)).slice(-2)+ '-' + ('0' + date.getDate()).slice(-2) + ' '+ date.getHours()+ ':'+('0' + ( date.getMinutes())).slice(-2)+ ':'+ date.getSeconds()
-}
-
 app.listen(PORT, () => {
-  console.log(`Express running on http://localhost:${PORT}`)
+  console.log(`Express running on https://localhost:${env.HTTPS_PORT}`)
 });
