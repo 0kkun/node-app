@@ -1,9 +1,18 @@
 ## 概要
 
-- nodeとexpressを使ったサンプルアプリケーション
-- google calendar apiの使用テスト
+- nodeとexpressを使ったサンプルアプリ
+- google calendar apiのお試し (OAuth2.0)
+- cloud SQLのお試し
 
 ## 環境構築
+
+### firestoreの準備
+
+1. 新しいプロジェクトを作成し、firestoreを構築する
+2. nodejs用のcredentials.jsonをダウンロード
+3. node/src/lib/firestore-credentials.jsonを作成し内容をコピペ
+
+### docker構築
 
 1. 以下のChromeの設定画面を開き、`Allow invalid certificates for resources loaded from localhost.` をEnabledに変更して保存する
 > chrome://flags/#allow-insecure-localhost
