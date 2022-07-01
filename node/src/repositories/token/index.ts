@@ -3,7 +3,7 @@ import { firestore } from 'firebase-admin'
 import { OAuth2Client } from 'google-auth-library'
 import { findDoc } from '../helper'
 import { db } from '../../lib/firebaseAdmin'
-
+import dayjs from 'dayjs'
 
 
 const collectionPath = (storeId: string, seatId: number): string => {
@@ -12,13 +12,7 @@ const collectionPath = (storeId: string, seatId: number): string => {
 
 const dateConvert = (expierDate: number | null | undefined): string => {
   if (expierDate) {
-    const date = new Date(expierDate)
-    return date.getFullYear() + '-' + 
-      ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
-      ('0' + date.getDate()).slice(-2) + ' ' +
-      date.getHours() + ':' + 
-      ('0' + (date.getMinutes())).slice(-2) + ':' +
-      date.getSeconds()
+    return dayjs(expierDate).format('YYYY-MM-DD HH:mm:ss')
   } else {
     return ''
   }

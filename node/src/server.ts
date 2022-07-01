@@ -29,13 +29,16 @@ app.get('/google-start', async (req, res) => {
   const seatId = Number(req.query.seatId)
   if (accessCode === 'undefined' || storeId === 'undefined' || isNaN(seatId)) {
     res.json({status:400, data:'bad request'})
+    return
   }
 
   try {
     const tokenDoc = await findTokenDoc(storeId, seatId)
     // 連携済の場合
     if (tokenDoc.exists) {
+      console.log('Already registered')
       res.json({status:200, data:'already'})
+      return
     }
     let oAuth2Client = await authorize()
     console.log('Google authorize completed')
@@ -46,7 +49,8 @@ app.get('/google-start', async (req, res) => {
     await storeToken(storeId, seatId, oAuth2Client)
     console.log('Save token is completed')
   
-    res.json({status:200, data:'success'});
+    res.json({status:200, data:'success'})
+    return
   } catch (e) {
     console.error(e)
     res.json({status:503, data:'server error'});
@@ -62,6 +66,7 @@ app.get('/google-get', async (req, res) => {
 
   if (storeId === 'undefined' || isNaN(seatId)) {
     res.json({status:400, data:'bad request'})
+    return
   }
 
   try {
@@ -70,7 +75,7 @@ app.get('/google-get', async (req, res) => {
     const oAuth2Client = await getOAuth2Client(tokenInfo)
     const events = await listEvents(oAuth2Client, timeMin, eventCount)
     res.status(200).send(events)
-
+    return
   } catch (e) {
     console.error(e)
     res.json({status:503, data:'server error'});
@@ -86,11 +91,11 @@ app.get('/google-create', async (req, res) => {
     description: '説明',
     location: '東京駅',
     start: {
-      dateTime: '2022-06-30T09:00:00', 
+      dateTime: '2022-07-01T09:00:00', 
       timeZone: 'Asia/Tokyo',
     },
     end: {
-      dateTime: '2022-06-30T10:00:00',
+      dateTime: '2022-07-01T10:00:00',
       timeZone: 'Asia/Tokyo',
     },
   }
@@ -98,6 +103,7 @@ app.get('/google-create', async (req, res) => {
   if (storeId === 'undefined' || isNaN(seatId)) {
     console.log('Bad request')
     res.status(400).send('Bad request. Must need [?storeId=&seatId=]')
+    return
   }
 
   try {
@@ -107,7 +113,7 @@ app.get('/google-create', async (req, res) => {
     const oAuth2Client = await getOAuth2Client(tokenInfo)
     const statusText = await insertEvent(oAuth2Client, event)
     res.status(200).send(statusText)
-
+    return
   } catch (e) {
     console.error(e)
     res.json({status:503, data:'server error'});
