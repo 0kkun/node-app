@@ -161,7 +161,7 @@ app.get('/generate-new-key', (req, res) => {
   const buffer = crypto.randomBytes(32)
   const encodedKey = buffer.toString('base64');
   console.log(`new key : ${encodedKey}`)
-  res.json({status: 200})
+  res.json({encoded_key: encodedKey})
 })
 
 app.get('/test', async (req, res) => {
