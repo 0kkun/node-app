@@ -1,7 +1,10 @@
 import express from 'express'
 import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
 import { Token } from 'entity/Token'
-import { findTokenData, findTokenDoc, storeToken } from './repositories/token'
+import { encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
+const CryptoJS = require('crypto-js')
+const crypto = require('crypto')
+
 const mysql = require('mysql')
 require('dotenv').config()
 const env = process.env
@@ -91,11 +94,11 @@ app.get('/google-create', async (req, res) => {
     description: '説明',
     location: '東京駅',
     start: {
-      dateTime: '2022-07-01T09:00:00', 
+      dateTime: '2022-07-06T09:00:00', 
       timeZone: 'Asia/Tokyo',
     },
     end: {
-      dateTime: '2022-07-01T10:00:00',
+      dateTime: '2022-07-06T10:00:00',
       timeZone: 'Asia/Tokyo',
     },
   }
@@ -138,6 +141,33 @@ app.get('/db-test', (req, res) => {
     }
   );
   res.json({status:200, data:'OK'})
+})
+
+// 暗号化・復号化のお試し
+app.get('/encrypt-decrypt', (req, res) => {
+  const str = "test"
+  const encrypted = CryptoJS.AES.encrypt(str, env.ENCRYPTION_KEY).toString()
+  // toStringでBase64フォーマットの文字列に変換
+  console.log(`暗号化後 : ${encrypted}`)
+
+  const decrypted = CryptoJS.AES.decrypt(encrypted, env.ENCRYPTION_KEY)
+  console.log(`復号化後 : ${decrypted.toString(CryptoJS.enc.Utf8)}`)
+  res.json({status: 200})
+})
+
+// 暗号化・復号化キー生成
+app.get('/generate-new-key', (req, res) => {
+  // 256 bit (32 byte) AES encryption key
+  const buffer = crypto.randomBytes(32)
+  const encodedKey = buffer.toString('base64');
+  console.log(`new key : ${encodedKey}`)
+  res.json({status: 200})
+})
+
+app.get('/test', async (req, res) => {
+  const tokenInfo = await findTokenData('store_1', 0)
+  const ret = await encryptToken(tokenInfo.accessToken)
+  res.json(ret)
 })
 
 app.listen(PORT, () => {

@@ -12,8 +12,8 @@ export type Token = {
 export interface TokenInfo {
   storeId: string
   seatId: number
-  accessToken: string | null | undefined
-  refreshToken: string | null | undefined
+  accessToken: string | null
+  refreshToken: string | null
   expiryDate: string
   updatedAt: firebase.firestore.Timestamp
 }
