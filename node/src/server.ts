@@ -2,11 +2,13 @@ import express from 'express'
 import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
 import { Token } from 'entity/Token'
 import { deleteTokenDoc, encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
-const CryptoJS = require('crypto-js')
-const crypto = require('crypto')
+import { config } from 'dotenv'
+import CryptoJS from 'crypto-js'
+import mysql from 'mysql'
+import dayjs from 'dayjs'
 
-const mysql = require('mysql')
-require('dotenv').config()
+// .envをprocess.envに割当て
+config()
 const env = process.env
 const PORT = env.NODE_PORT
 const app = express()
@@ -90,24 +92,28 @@ app.get('/google-get', async (req, res) => {
 app.get('/google-create', async (req, res) => {
   const storeId: string = String(req.query.storeId)
   const seatId: number = Number(req.query.seatId)
-  const event = {
-    summary: 'イベント名',
-    description: '説明',
-    location: '東京駅',
-    start: {
-      dateTime: '2022-07-06T09:00:00', 
-      timeZone: 'Asia/Tokyo',
-    },
-    end: {
-      dateTime: '2022-07-06T10:00:00',
-      timeZone: 'Asia/Tokyo',
-    },
-  }
+  // 1時間後に1時間の適当な予定が入るようにする
+  const startDateTime = dayjs().add(1, 'h').format()
+  const endDateTime = dayjs().add(2, 'h').format()
 
   if (storeId === 'undefined' || isNaN(seatId)) {
     console.log('Bad request')
     res.status(400).send('Bad request. Must need [?storeId=&seatId=]')
     return
+  }
+
+  const event = {
+    summary: 'APIから追加した予定',
+    description: '説明',
+    location: '東京駅',
+    start: {
+      dateTime: startDateTime, 
+      timeZone: 'Asia/Tokyo',
+    },
+    end: {
+      dateTime: endDateTime,
+      timeZone: 'Asia/Tokyo',
+    },
   }
 
   try {
@@ -120,7 +126,7 @@ app.get('/google-create', async (req, res) => {
     return
   } catch (e) {
     console.error(e)
-    res.json({status:503, data:'server error'});
+    res.status(503).send({ message:'server error' })
   }
 })
 
@@ -147,22 +153,26 @@ app.get('/db-test', (req, res) => {
 // 暗号化・復号化のお試し
 app.get('/encrypt-decrypt', (req, res) => {
   const str = "test"
-  const encrypted = CryptoJS.AES.encrypt(str, env.ENCRYPTION_KEY).toString()
-  // toStringでBase64フォーマットの文字列に変換
-  console.log(`暗号化後 : ${encrypted}`)
+  const encryptionKey = env.ENCRYPTION_KEY
+  if (encryptionKey) {
+    const encrypted = CryptoJS.AES.encrypt(str, encryptionKey).toString()
+    // toStringでBase64フォーマットの文字列に変換
+    console.log(`暗号化後 : ${encrypted}`)
+  
+    const decrypted = CryptoJS.AES.decrypt(encrypted, encryptionKey)
+    console.log(`復号化後 : ${decrypted.toString(CryptoJS.enc.Utf8)}`)
+  }
 
-  const decrypted = CryptoJS.AES.decrypt(encrypted, env.ENCRYPTION_KEY)
-  console.log(`復号化後 : ${decrypted.toString(CryptoJS.enc.Utf8)}`)
-  res.json({status: 200})
+  res.json({ status: 200 })
 })
 
 // 暗号化・復号化キー生成
 app.get('/generate-new-key', (req, res) => {
-  // 256 bit (32 byte) AES encryption key
-  const buffer = crypto.randomBytes(32)
-  const encodedKey = buffer.toString('base64');
-  console.log(`new key : ${encodedKey}`)
-  res.json({encoded_key: encodedKey})
+  // PBKDF2 : 共通鍵暗号用の鍵を生成する鍵導出関数
+  const salt = CryptoJS.lib.WordArray.random(128/8)
+  const key256Bits = CryptoJS.PBKDF2("Secret Passphrase", salt, { keySize: 256/32 })
+  console.log(key256Bits.toString())
+  res.json({ encoded_key: key256Bits.toString() })
 })
 
 app.get('/test', async (req, res) => {

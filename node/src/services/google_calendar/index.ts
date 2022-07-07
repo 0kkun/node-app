@@ -2,7 +2,10 @@ import { GoogleCalendarEvent, TokenInfo } from 'entity/Token'
 import { updateToken, decryptToken } from '../../repositories/token'
 import { google, Auth, calendar_v3 } from 'googleapis'
 import { GaxiosError, GaxiosResponse } from 'gaxios'
-require('dotenv').config()
+import { config } from 'dotenv'
+
+// .envをprocess.envに割当て
+config()
 const env = process.env
 
 /**

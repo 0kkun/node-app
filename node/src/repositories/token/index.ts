@@ -5,7 +5,8 @@ import { db } from '../../lib/firebaseAdmin'
 import dayjs from 'dayjs'
 import { Auth } from 'googleapis'
 import CryptoJS from 'crypto-js'
-require('dotenv').config()
+import { config } from 'dotenv'
+config()
 const env = process.env
 
 const collectionPath = (storeId: string, seatId: number): string => {
