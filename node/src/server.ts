@@ -1,7 +1,7 @@
 import express from 'express'
 import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
 import { Token } from 'entity/Token'
-import { encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
+import { deleteTokenDoc, encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
 const CryptoJS = require('crypto-js')
 const crypto = require('crypto')
 
@@ -37,12 +37,13 @@ app.get('/google-start', async (req, res) => {
 
   try {
     const tokenDoc = await findTokenDoc(storeId, seatId)
-    // 連携済の場合
+    // トークン情報が存在する場合は該当のトークン情報を削除してから処理を行う
     if (tokenDoc.exists) {
-      console.log('Already registered')
-      res.json({status:200, data:'already'})
-      return
+      console.log('Token already exists')
+      await deleteTokenDoc(tokenDoc)
+      console.log('Old token deleted')
     }
+
     let oAuth2Client = await authorize()
     console.log('Google authorize completed')
   

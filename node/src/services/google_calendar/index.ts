@@ -165,7 +165,7 @@ export const listEvents = async (
           console.log(results)
           resolve(results)
         } else {
-          console.log('No upcoming events found.')
+          console.log('Events not found.')
           resolve('NOT_FOUND')
         }
       }

@@ -1,10 +1,10 @@
 import { TokenInfo } from 'entity/Token'
 import { firestore } from 'firebase-admin'
-import { findDoc } from '../helper'
+import { Document, findDoc } from '../helper'
 import { db } from '../../lib/firebaseAdmin'
 import dayjs from 'dayjs'
 import { Auth } from 'googleapis'
-const CryptoJS = require('crypto-js')
+import CryptoJS from 'crypto-js'
 require('dotenv').config()
 const env = process.env
 
@@ -25,12 +25,11 @@ const dateConvert = (expierDate: number | null | undefined): string => {
  * @param token
  * @returns
  */
-export const encryptToken = (
-  token: string | null | undefined
-): string => {
-  if (token) {
+export const encryptToken = (token: string | null | undefined): string => {
+  const encryptionKey = env.ENCRYPTION_KEY
+  if (token && encryptionKey) {
     // toStringでBase64フォーマットの文字列に変換
-    return CryptoJS.AES.encrypt(token, env.ENCRYPTION_KEY).toString()
+    return CryptoJS.AES.encrypt(token, encryptionKey).toString()
   } else {
     return ''
   }
@@ -41,11 +40,10 @@ export const encryptToken = (
  * @param token
  * @returns
  */
-export const decryptToken = (
-  token: string | null | undefined
-): string => {
-  if (token) {
-    return CryptoJS.AES.decrypt(token, env.ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8)
+export const decryptToken = (token: string | null | undefined): string => {
+  const encryptionKey = env.ENCRYPTION_KEY
+  if (token && encryptionKey) {
+    return CryptoJS.AES.decrypt(token, encryptionKey).toString(CryptoJS.enc.Utf8)
   } else {
     return ''
   }
@@ -60,7 +58,7 @@ export const storeToken = async (
   storeId: string,
   seatId: number,
   oAuth2Client: Auth.OAuth2Client
-) => {
+): Promise<void> => {
   const data: TokenInfo = {
     storeId: storeId,
     accessToken: encryptToken(oAuth2Client.credentials.access_token),
@@ -117,7 +115,18 @@ export const findTokenData = async (
 export const findTokenDoc = async (
   storeId: string,
   seatId: number
-) => {
+): Promise<Document<TokenInfo>> => {
   const tokenInfoDoc = await findDoc<TokenInfo>(collectionPath(storeId, seatId))
   return tokenInfoDoc
+}
+
+/**
+ * トークン情報を削除する
+ * @param tokenInfoDoc
+ */
+export const deleteTokenDoc = async (
+  tokenInfoDoc: Document<TokenInfo>
+): Promise<void> => {
+  await tokenInfoDoc.ref.delete()
+  return
 }
