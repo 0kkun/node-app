@@ -6,23 +6,23 @@ init:
 
 .PHONY: build
 build: 
-	docker-compose build --no-cache --force-rm
+	docker compose build --no-cache --force-rm
 
 .PHONY: up
 up:
-	docker-compose up -d
+	docker compose up -d
 
 .PHONY: stop
 stop:
-	docker-compose stop
+	docker compose stop
 
 .PHONY: down
 down:
-	docker-compose down
+	docker compose down
 
 .PHONY: node
 node:
-	docker-compose exec node bash
+	docker compose exec node bash
 
 .PHONY: start
 start:

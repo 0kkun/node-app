@@ -141,7 +141,7 @@ app.get('/google-create', async (req, res) => {
 
     const oAuth2Client = await getOAuth2Client(tokenInfo)
     const statusText = await insertEvent(oAuth2Client, event)
-    res.status(200).send(statusText)
+    res.json(makeResponse(200, statusText))
     return
   } catch (e) {
     console.error(e)
