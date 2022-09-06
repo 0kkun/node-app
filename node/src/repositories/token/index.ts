@@ -14,11 +14,23 @@ const collectionPath = (storeId: string, seatId: number): string => {
 }
 
 const dateConvert = (expierDate: number | null | undefined): string => {
-  if (expierDate != null) {
+  if (env.TZ === 'UTC' && expierDate != null) {
+    const expierDateJst = getTimeJst(expierDate)
+    return dayjs(expierDateJst).format('YYYY-MM-DD HH:mm:ss')
+  } else if (expierDate != null) {
     return dayjs(expierDate).format('YYYY-MM-DD HH:mm:ss')
   } else {
     return ''
   }
+}
+
+/**
+ * JSTに変換する
+ */
+const getTimeJst = (date: number): Date => {
+  const now = new Date(date)
+  now.setTime(now.getTime() + 1000 * 60 * 60 * 9)
+  return now
 }
 
 /**
@@ -108,7 +120,7 @@ export const findTokenData = async (
 }
 
 /**
- * トークンがすでに登録済かどうか(google連携済)を返す
+ * トークンドキュメントを取得する
  * @param storeId
  * @param seatId
  * @returns

@@ -1,6 +1,7 @@
 import express from 'express'
 import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
 import { Token } from 'entity/Token'
+import { ApiResponse } from 'entity/Api'
 import { deleteTokenDoc, encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
 import { config } from 'dotenv'
 import CryptoJS from 'crypto-js'
@@ -19,7 +20,26 @@ const connection = mysql.createConnection({
   user: 'root',
   password: 'secret',
   database: 'sample'
-});
+})
+
+const makeResponse = (status: number, data?: any): ApiResponse => {
+  if (status === 200) {
+    return { status: 200, message: 'ok' }
+  } else if (status === 200 && !data) {
+    return {
+      status: 200,
+      message: 'ok',
+      data: data,
+    }
+  } else if (status === 400) {
+    console.log('Bad request')
+    return { status: 400, message: 'bad request'}
+  } else if (status === 503) {
+    return { status: 503, message: 'server error' }
+  } else {
+    return { status: 0, message: '' }
+  }
+}
 
 // アクセスコード生成用ページ
 app.get('/', async (req, res) => {
@@ -33,7 +53,7 @@ app.get('/google-start', async (req, res) => {
   const storeId = String(req.query.storeId)
   const seatId = Number(req.query.seatId)
   if (accessCode === 'undefined' || storeId === 'undefined' || isNaN(seatId)) {
-    res.json({status:400, data:'bad request'})
+    res.json(makeResponse(400))
     return
   }
 
@@ -55,11 +75,11 @@ app.get('/google-start', async (req, res) => {
     await storeToken(storeId, seatId, oAuth2Client)
     console.log('Save token is completed')
   
-    res.json({status:200, data:'success'})
+    res.json(makeResponse(200))
     return
   } catch (e) {
     console.error(e)
-    res.json({status:503, data:'server error'});
+    res.json(makeResponse(503));
   }
 })
 
@@ -71,7 +91,7 @@ app.get('/google-get', async (req, res) => {
   const eventCount: number = 1
 
   if (storeId === 'undefined' || isNaN(seatId)) {
-    res.json({status:400, data:'bad request'})
+    res.json(makeResponse(400))
     return
   }
 
@@ -84,7 +104,7 @@ app.get('/google-get', async (req, res) => {
     return
   } catch (e) {
     console.error(e)
-    res.json({status:503, data:'server error'});
+    res.json(makeResponse(503));
   }
 })
 
@@ -97,8 +117,7 @@ app.get('/google-create', async (req, res) => {
   const endDateTime = dayjs().add(2, 'h').format()
 
   if (storeId === 'undefined' || isNaN(seatId)) {
-    console.log('Bad request')
-    res.status(400).send('Bad request. Must need [?storeId=&seatId=]')
+    res.json(makeResponse(400))
     return
   }
 
@@ -126,7 +145,28 @@ app.get('/google-create', async (req, res) => {
     return
   } catch (e) {
     console.error(e)
-    res.status(503).send({ message:'server error' })
+    res.json(makeResponse(503))
+  }
+})
+
+app.get('/google-inactive', async (req, res) => {
+  console.log('start google inactive')
+  const storeId: string = String(req.query.storeId)
+  const seatId: number = Number(req.query.seatId)
+
+  if (storeId === 'undefined' || isNaN(seatId)) {
+    res.json(makeResponse(400))
+    return
+  }
+
+  try {
+    const tokenDoc = await findTokenDoc(storeId, seatId)
+    await deleteTokenDoc(tokenDoc)
+    res.json(makeResponse(200))
+    return
+  } catch (e) {
+    console.error(e)
+    res.json(makeResponse(503))
   }
 })
 
@@ -134,20 +174,25 @@ app.get('/google-create', async (req, res) => {
  * cloud sqlの接続テスト
  */
 app.get('/db-test', (req, res) => {
-  connection.connect((err: any) => {
-    if (err) {
-      console.log('error connecting: ' + err.stack);
-      return;
-    }
-    console.log('db connect success');
-  });
-  connection.query(
-    'SELECT * FROM tokens',
-    (error: any, results: Token[]) => {
-      console.log(results);
-    }
-  );
-  res.json({status:200, data:'OK'})
+  try {
+    connection.connect((err: any) => {
+      if (err) {
+        console.log('error connecting: ' + err.stack);
+        return
+      }
+      console.log('db connect success');
+    })
+    connection.query(
+      'SELECT * FROM tokens',
+      (error: any, results: Token[]) => {
+        console.log(results)
+      }
+    )
+    res.json(makeResponse(200))
+  } catch (e) {
+    console.log(e)
+    res.json(makeResponse(503))
+  }
 })
 
 // 暗号化・復号化のお試し
@@ -162,8 +207,7 @@ app.get('/encrypt-decrypt', (req, res) => {
     const decrypted = CryptoJS.AES.decrypt(encrypted, encryptionKey)
     console.log(`復号化後 : ${decrypted.toString(CryptoJS.enc.Utf8)}`)
   }
-
-  res.json({ status: 200 })
+  res.json(makeResponse(200))
 })
 
 // 暗号化・復号化キー生成
@@ -175,12 +219,15 @@ app.get('/generate-new-key', (req, res) => {
   res.json({ encoded_key: key256Bits.toString() })
 })
 
-app.get('/test', async (req, res) => {
-  const tokenInfo = await findTokenData('store_1', 0)
-  const ret = await encryptToken(tokenInfo.accessToken)
-  res.json(ret)
+app.get('/token-encrypt-test', async (req, res) => {
+  const storeId: string = String(req.query.storeId)
+  const seatId: number = Number(req.query.seatId)
+
+  const tokenInfo = await findTokenData(storeId, seatId)
+  const result = await encryptToken(tokenInfo.accessToken)
+  res.json(result)
 })
 
 app.listen(PORT, () => {
   console.log(`Express running on https://localhost:${env.HTTPS_PORT}`)
-});
+})

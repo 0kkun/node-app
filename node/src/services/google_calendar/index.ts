@@ -98,12 +98,13 @@ export const isWithinValidDate = async (
   expierDate: string
 ): Promise<boolean> => {
   const expire = new Date(expierDate)
-  const now = new Date()
+  const now = getNowTimeJst()
+  console.log('expire : ', expire)
+  console.log('now : ', now)
   if (expire > now) {
     console.log('Access token is valid.')
     return true
-  }
-  else {
+  } else {
     console.log('Access token is invalid')
     return false
   }
@@ -191,4 +192,13 @@ export const insertEvent = async (
   }
   const response = await calendar.events.insert(requestParam)
   return response.statusText
+}
+
+/**
+ * 現在日時をJSTで取得する
+ */
+const getNowTimeJst = (): Date => {
+  const now = new Date()
+  now.setTime(now.getTime() + 1000 * 60 * 60 * 9)
+  return now
 }
