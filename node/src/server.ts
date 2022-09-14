@@ -1,12 +1,13 @@
 import express from 'express'
-import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents } from './services/google_calendar'
+import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents, checkCalendarId } from './services/google_calendar'
 import { Token } from 'entity/Token'
 import { ApiResponse } from 'entity/Api'
 import { deleteTokenDoc, encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
+import { findGoogleInfoDoc, storeGoogleInfo, deleteGoogleInfo } from './repositories/googleInfo'
 import { config } from 'dotenv'
 import CryptoJS from 'crypto-js'
 import mysql from 'mysql'
-import dayjs from 'dayjs'
+import dayjs from './lib/dayjs'
 
 // .envをprocess.envに割当て
 config()
@@ -23,12 +24,18 @@ const connection = mysql.createConnection({
 })
 
 const makeResponse = (status: number, data?: any): ApiResponse => {
-  if (status === 200) {
-    return { status: 200, message: 'ok' }
-  } else if (status === 200 && !data) {
+  if (status === 200 && data) {
     return {
       status: 200,
       message: 'ok',
+      data: data,
+    }
+  } else if (status === 200) {
+    return { status: 200, message: 'ok' }
+  } else if (status === 400 && data) {
+    return {
+      status: 400,
+      message: 'bad request',
       data: data,
     }
   } else if (status === 400) {
@@ -226,6 +233,46 @@ app.get('/token-encrypt-test', async (req, res) => {
   const tokenInfo = await findTokenData(storeId, seatId)
   const result = await encryptToken(tokenInfo.accessToken)
   res.json(result)
+})
+
+// サービスアカウントを用いた連携開始API
+app.get('/service-account_start', async (req, res) => {
+  try {
+    const storeId = req.query.storeId
+    const seatId = req.query.seatId
+    const calendarId = req.query.calendarId
+    if (
+      typeof storeId === 'undefined' ||
+      typeof seatId === 'undefined' ||
+      typeof calendarId === 'undefined'
+    ) {
+      res.send(makeResponse(400))
+      return
+    }
+    const result = await checkCalendarId(String(calendarId))
+
+    if (result === 'SUCCESS') {
+      const googleInfoDoc = await findGoogleInfoDoc(String(storeId), Number(seatId))
+      // トークン情報が存在する場合は該当のトークン情報を削除してから処理を行う
+      if (googleInfoDoc.exists) {
+        console.log('GoogleInfo already exists')
+        await deleteGoogleInfo(googleInfoDoc)
+      }
+
+      await storeGoogleInfo(String(storeId), Number(seatId), String(calendarId))
+
+      res.json(makeResponse(200, result))
+
+    } else if (result  === 'INVALID_EMAIL') {
+      res.json(makeResponse(400, { reason: '連携したいgoogleアカウントのカレンダーにサービスアカウントのメールアドレスを追加してください。' }))
+    } else if (result === 'NOT_ENOUGH_AUTH') {
+      res.json(makeResponse(400, { reason: 'googleカレンダーに追加したサービスアカウントの権限設定を「変更および共有の管理権限」に変更してください。' }))
+    } else {
+      res.json(makeResponse(503, result))
+    }
+  } catch (error) {
+    res.send(makeResponse(503))
+  }
 })
 
 app.listen(PORT, () => {
