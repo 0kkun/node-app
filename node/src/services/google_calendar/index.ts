@@ -130,10 +130,10 @@ export const generateAuthUrl = async (): Promise<string> => {
  * credentialセット済みのOAuth2を渡してカレンダー情報を取得する
  */
 export const listEvents = async (
-  auth: Auth.OAuth2Client | any,
+  auth: Auth.OAuth2Client,
   timeMin: string,
   maxResults: number
-): Promise<GoogleCalendarEvent[] | 'NOT_FOUND'> => {
+): Promise<GoogleCalendarEvent[] | 'NOT_FOUND' | 'ERROR'> => {
   const calendar = google.calendar({ version: 'v3', auth })
   const requestParam = {
     calendarId: 'primary',
@@ -144,7 +144,7 @@ export const listEvents = async (
   }
   const results: GoogleCalendarEvent[] = []
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     calendar.events.list(
       requestParam,
       (
@@ -153,17 +153,16 @@ export const listEvents = async (
       ) => {
       if (err || res == null || res.data.items == null) {
         console.log('The API returned an error: ' + err)
-        reject()
-        return
+        resolve('ERROR')
       } else {
         const events = res.data.items
         if (events.length) {
           console.log('Event acquisition completed.')
-          events.map((event: any) => {
+          events.map((event: calendar_v3.Schema$Event) => {
             results.push({
               id: event.id,
-              startTime: event.start.dateTime,
-              endTime: event.end.dateTime,
+              startTime: event.start?.dateTime,
+              endTime: event.end?.dateTime,
               summary: event.summary,
               location: event.location,
             })
@@ -185,15 +184,32 @@ export const listEvents = async (
 export const insertEvent = async (
   auth: Auth.OAuth2Client,
   event: calendar_v3.Schema$Event
-): Promise<string> => {
+): Promise<GaxiosResponse<calendar_v3.Schema$Event> | 'ERROR'> => {
   const calendar = google.calendar({ version: 'v3', auth })
-  const requestParam = {
+  const requestParams = {
     auth: auth,
     calendarId: 'primary',
     requestBody: event
   }
-  const response = await calendar.events.insert(requestParam)
-  return response.statusText
+
+  return new Promise((resolve) => {
+    calendar.events.insert(
+      requestParams,
+      (
+        err: Error | null,
+        res: GaxiosResponse<calendar_v3.Schema$Events> | null | undefined
+      ) => {
+        if (err || res === null || res === undefined) {
+          console.log('The API returned an error: ' + err)
+          resolve('ERROR')
+          return
+        } else {
+          console.log('Finish insert event to google calendar')
+          resolve(res)
+        }
+      }
+    )
+  })
 }
 
 /**
@@ -219,6 +235,9 @@ export const saAuthorize = async (): Promise<Auth.GoogleAuth> => {
   })
 }
 
+/**
+ * サービスアカウント経由でカレンダーイベントを取得する
+ */
 export const saListEvent = async (
   auth: Auth.GoogleAuth,
   timeMin: string,
@@ -236,44 +255,51 @@ export const saListEvent = async (
   }
   const results: GoogleCalendarEvent[] = []
 
-  return new Promise((resolve, _) => {
+  return new Promise((resolve) => {
     calendar.events.list(
       requestParam,
       (
         err: Error | null,
         res: GaxiosResponse<calendar_v3.Schema$Events> | null | undefined
       ) => {
-      if (err || res == null || res.data.items == null) {
-        console.log('The API returned an error: ' + err)
-        resolve('INVALID_EMAIL')
-        return
-      } else {
-        const events = res.data.items
-        if (events.length) {
-          console.log('Google event acquisition completed.')
-          events.map((event: any) => {
-            results.push({
-              id: event.id,
-              startTime: event.start.dateTime,
-              endTime: event.end.dateTime,
-              summary: event.summary,
-              location: event.location,
-            })
-          })
-          console.log(results)
-          console.log('Finish fetch events from google calendar')
-          resolve(results)
+        if (
+          err ||
+          res === null ||
+          res === undefined ||
+          res.data.items === null ||
+          res.data.items === undefined
+        ) {
+          console.log('The API returned an error: ' + err)
+          resolve('INVALID_EMAIL')
+          return
         } else {
-          console.log('Finish fetch events from google calendar. Events not Found')
-          resolve('NOT_FOUND')
+          const events = res.data.items
+          if (events.length) {
+            console.log('Google event acquisition completed.')
+            events.map((event: calendar_v3.Schema$Event) => {
+              results.push({
+                id: event.id,
+                startTime: event.start?.dateTime,
+                endTime: event.end?.dateTime,
+                summary: event.summary,
+                location: event.location,
+              })
+            })
+            console.log(results)
+            console.log('Finish fetch events from google calendar')
+            resolve(results)
+          } else {
+            console.log('Finish fetch events from google calendar. Events not Found')
+            resolve('NOT_FOUND')
+          }
         }
       }
-    })
+    )
   })
 }
 
 /**
- * カレンダーにスケジュールを登録する
+ * サービスアカウント経由でカレンダーにスケジュールを登録する
  */
 export const saInsertEvent = async (
   auth: Auth.GoogleAuth,
@@ -288,7 +314,7 @@ export const saInsertEvent = async (
     requestBody: event
   }
 
-  return new Promise((resolve, _) => {
+  return new Promise((resolve) => {
     calendar.events.insert(
       requestParams,
       (
@@ -324,13 +350,10 @@ export const saDeleteEvent = async (
     calendarId: calendarId,
   }
 
-  return new Promise((resolve, _) => {
+  return new Promise((resolve) => {
     calendar.events.delete(
       requestParams,
-      (
-        err: Error | null,
-        res: GaxiosResponse<void> | null | undefined
-      ) => {
+      (err: Error | null, res: GaxiosResponse<void> | null | undefined) => {
         if (err || res === null || res === undefined) {
           console.log('The API returned an error: ' + err)
           resolve('NOT_ENOUGH_AUTH')
@@ -355,11 +378,11 @@ export const checkCalendarId = async (
   const maxResult = 1
   const date = dayjs().tz('Asia/Tokyo')
   const now = date.format()
-  const nowAddOne = date.add(1, 'hour').format()
-  const nowAddTwo = date.add(2, 'hour').format()
+  const oneHourLater = date.add(1, 'hour').format()
+  const TwoHourLater = date.add(2, 'hour').format()
 
   console.log('fetch start time : ', now)
-  const listResponse = await saListEvent(auth, now, maxResult, String(calendarId))
+  const listResponse = await saListEvent(auth, now, maxResult, calendarId)
   if (listResponse === 'INVALID_EMAIL') return listResponse
 
   const sampleEvent: calendar_v3.Schema$Event = {
@@ -367,11 +390,11 @@ export const checkCalendarId = async (
     description: 'Google連携確認用のイベントです',
     location: 'test',
     start: {
-      dateTime: nowAddOne, 
+      dateTime: oneHourLater,
       timeZone: 'Asia/Tokyo',
     },
     end: {
-      dateTime: nowAddTwo,
+      dateTime: TwoHourLater,
       timeZone: 'Asia/Tokyo',
     },
   }

@@ -249,9 +249,9 @@ app.get('/service-account_start', async (req, res) => {
       res.send(makeResponse(400))
       return
     }
-    const result = await checkCalendarId(String(calendarId))
+    const checkResult = await checkCalendarId(String(calendarId))
 
-    if (result === 'SUCCESS') {
+    if (checkResult === 'SUCCESS') {
       const googleInfoDoc = await findGoogleInfoDoc(String(storeId), Number(seatId))
       // トークン情報が存在する場合は該当のトークン情報を削除してから処理を行う
       if (googleInfoDoc.exists) {
@@ -261,14 +261,14 @@ app.get('/service-account_start', async (req, res) => {
 
       await storeGoogleInfo(String(storeId), Number(seatId), String(calendarId))
 
-      res.json(makeResponse(200, result))
+      res.json(makeResponse(200, checkResult))
 
-    } else if (result  === 'INVALID_EMAIL') {
+    } else if (checkResult  === 'INVALID_EMAIL') {
       res.json(makeResponse(400, { reason: '連携したいgoogleアカウントのカレンダーにサービスアカウントのメールアドレスを追加してください。' }))
-    } else if (result === 'NOT_ENOUGH_AUTH') {
+    } else if (checkResult === 'NOT_ENOUGH_AUTH') {
       res.json(makeResponse(400, { reason: 'googleカレンダーに追加したサービスアカウントの権限設定を「変更および共有の管理権限」に変更してください。' }))
     } else {
-      res.json(makeResponse(503, result))
+      res.json(makeResponse(503, checkResult))
     }
   } catch (error) {
     res.send(makeResponse(503))

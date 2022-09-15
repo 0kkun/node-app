@@ -19,13 +19,12 @@ export interface TokenInfo {
 }
 
 export interface GoogleCalendarEvent {
-  id?: string
-  startTime?: string
-  endTime?: string
-  summary?: string
-  location?: string
+  id: string | null | undefined
+  startTime: string | null | undefined
+  endTime: string | null | undefined
+  summary: string | null | undefined
+  location: string | null | undefined
 }
-
 export interface GoogleInsertResponse {
   config: {}
   data: {}
