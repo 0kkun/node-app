@@ -5,6 +5,8 @@ import { GaxiosError, GaxiosResponse } from 'gaxios'
 import { config } from 'dotenv'
 import { CredentialBody } from 'google-auth-library'
 import dayjs from '../../lib/dayjs'
+import { GoogleInfo } from 'entity/GoogleInfo'
+const performance = require('perf_hooks').performance
 
 // .envをprocess.envに割当て
 config()
@@ -227,7 +229,7 @@ const getNowTimeJst = (): Date => {
 export const saAuthorize = async (): Promise<Auth.GoogleAuth> => {
   const credentials: CredentialBody = {
     client_email: env.SA_CLIENT_EMAIL,
-    private_key: env.SA_PRIVATE_KEY,
+    private_key: env.SA_PRIVATE_KEY ? env.SA_PRIVATE_KEY.replace(/\\n/g, '\n') : '',
   }
   return new google.auth.GoogleAuth({
     credentials: credentials,
@@ -241,7 +243,7 @@ export const saAuthorize = async (): Promise<Auth.GoogleAuth> => {
 export const saListEvent = async (
   auth: Auth.GoogleAuth,
   timeMin: string,
-  maxResults: number,
+  maxResults: number | undefined,
   calendarId: string
 ): Promise<GoogleCalendarEvent[] | 'NOT_FOUND' | 'INVALID_EMAIL'> => {
   console.log('Start fetch events from google calendar')
@@ -408,4 +410,34 @@ export const checkCalendarId = async (
   if (deleteResponse === 'NOT_ENOUGH_AUTH') return 'NOT_ENOUGH_AUTH'
 
   return 'SUCCESS'
+}
+
+/**
+ * 連携解除が可能かどうか確認する
+ */
+export const checkCanInactive = async (
+  googleInfo: GoogleInfo
+): Promise<'OK' | 'ERROR' | 'INVALID_EMAIL' | string> => {
+  const auth = await saAuthorize()
+  const timeMin = dayjs().tz('Asia/Tokyo').format()
+  const maxResult = undefined
+
+  const start = performance.now()
+  const events = await saListEvent(auth, timeMin, maxResult, googleInfo.calendarId)
+  const end = performance.now()
+
+  const time = ((end - start) / 1000).toPrecision(3)
+  console.log(`処理時間 : ${time} sec`)
+
+  if (events === 'NOT_FOUND') return 'OK'
+  if (events === 'INVALID_EMAIL') return 'INVALID_EMAIL'
+
+  //スケジュールがある場合はendTimeを返す
+  if (events.length && events[0].endTime) {
+    const count = events.length
+    const lastIndex = count - 1
+    return events[lastIndex].endTime ?? 'ERROR'
+  } else {
+    return 'ERROR'
+  }
 }

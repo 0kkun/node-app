@@ -52,7 +52,7 @@ export const findGoogleInfoData = async (
 ): Promise<GoogleInfo> => {
   const googleInfoDoc = await findDoc<GoogleInfo>(collectionPath(storeId, seatId))
   if (!googleInfoDoc.exists) {
-    throw new Error('token not found.')
+    throw new Error('googleInfo not found.')
   }
   console.log('found googleInfo data.')
   return googleInfoDoc.data()

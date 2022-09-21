@@ -1,9 +1,9 @@
 import express from 'express'
-import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents, checkCalendarId } from './services/google_calendar'
+import { authorize, generateAuthUrl, getOAuth2Client, getToken, insertEvent, listEvents, checkCalendarId, checkCanInactive } from './services/google_calendar'
 import { Token } from 'entity/Token'
 import { ApiResponse } from 'entity/Api'
 import { deleteTokenDoc, encryptToken, findTokenData, findTokenDoc, storeToken } from './repositories/token'
-import { findGoogleInfoDoc, storeGoogleInfo, deleteGoogleInfo } from './repositories/googleInfo'
+import { findGoogleInfoDoc, storeGoogleInfo, deleteGoogleInfo, findGoogleInfoData } from './repositories/googleInfo'
 import { config } from 'dotenv'
 import CryptoJS from 'crypto-js'
 import mysql from 'mysql'
@@ -204,7 +204,7 @@ app.get('/db-test', (req, res) => {
 
 // 暗号化・復号化のお試し
 app.get('/encrypt-decrypt', (req, res) => {
-  const str = "test"
+  const str = 'test'
   const encryptionKey = env.ENCRYPTION_KEY
   if (encryptionKey) {
     const encrypted = CryptoJS.AES.encrypt(str, encryptionKey).toString()
@@ -221,7 +221,7 @@ app.get('/encrypt-decrypt', (req, res) => {
 app.get('/generate-new-key', (req, res) => {
   // PBKDF2 : 共通鍵暗号用の鍵を生成する鍵導出関数
   const salt = CryptoJS.lib.WordArray.random(128/8)
-  const key256Bits = CryptoJS.PBKDF2("Secret Passphrase", salt, { keySize: 256/32 })
+  const key256Bits = CryptoJS.PBKDF2('Secret Passphrase', salt, { keySize: 256/32 })
   console.log(key256Bits.toString())
   res.json({ encoded_key: key256Bits.toString() })
 })
@@ -236,7 +236,7 @@ app.get('/token-encrypt-test', async (req, res) => {
 })
 
 // サービスアカウントを用いた連携開始API
-app.get('/service-account_start', async (req, res) => {
+app.get('/google-saStart', async (req, res) => {
   try {
     const storeId = req.query.storeId
     const seatId = req.query.seatId
@@ -258,7 +258,6 @@ app.get('/service-account_start', async (req, res) => {
         console.log('GoogleInfo already exists')
         await deleteGoogleInfo(googleInfoDoc)
       }
-
       await storeGoogleInfo(String(storeId), Number(seatId), String(calendarId))
 
       res.json(makeResponse(200, checkResult))
@@ -274,6 +273,30 @@ app.get('/service-account_start', async (req, res) => {
     res.send(makeResponse(503))
   }
 })
+
+app.get('/google-saInactive', async (req, res) => {
+  console.log('start google service account inactive')
+
+  const storeId: string = String(req.query.storeId)
+  const seatId: number = Number(req.query.seatId)
+
+  const googleInfoDoc = await findGoogleInfoDoc(storeId, seatId)
+  const checkResult = await checkCanInactive(googleInfoDoc.data())
+
+  if (checkResult === 'OK') {
+    await deleteGoogleInfo(googleInfoDoc)
+    res.status(204).send({status: 'ok'})
+  }
+
+  if (checkResult === 'ERROR') {
+    res.status(504).send({message: 'error'})
+  } else if (checkResult === 'INVALID_EMAIL') {
+    res.status(504).send({message: 'invalid google account in database'})
+  } else {
+    res.status(400).send({message: `先のスケジュールに予定があるため解除できません。${checkResult}以降に解除してください。`})
+  }
+})
+
 
 app.listen(PORT, () => {
   console.log(`Express running on https://localhost:${env.HTTPS_PORT}`)
